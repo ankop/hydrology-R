@@ -1,0 +1,98 @@
+---
+title: "Site Vicinity Map"
+author: "Enmian Chang"
+date: "11/18/2020"
+output: html_document
+---
+#Real RMD, refer to this one for site vicinity map code
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r Maps}
+library(raster)
+library(rgdal)
+library(tmap)
+# install.packages("gdalUtils")
+library(gdalUtils)
+
+data_files = file.path("C:/Users/enmia/OneDrive/Documents/GitHub/FYS-Assignments", "data")
+data_files
+
+ca_counties = readOGR(dsn = data_files, layer = "CA_Counties_TIGER2016")
+ca_places = readOGR(dsn = data_files, layer = "CA_Places_TIGER2016")
+ca_state = readOGR(dsn = data_files, layer = "CA_State_TIGER2016")
+biological_resources_inventory = readOGR(dsn = data_files, layer = "a00a7def-1859-4381-8b9a-d44dde4a5a36202046-1-1qy8kwg.r7bi")
+
+
+srtm_13_06 = raster(file.path(data_files,"srtm_13_06.tif"))
+srtm_13_05 = raster(file.path(data_files,"srtm_13_05.tif"))
+srtm_13_04 = raster(file.path(data_files,"srtm_13_04.tif"))
+srtm_12_06 = raster(file.path(data_files,"srtm_12_06.tif"))
+srtm_12_05 = raster(file.path(data_files,"srtm_12_05.tif"))
+srtm_12_04 = raster(file.path(data_files,"srtm_12_04.tif"))
+```
+
+```{r}
+low_resolution_dem = merge(srtm_13_06, srtm_13_05, srtm_13_04, srtm_12_06, srtm_12_05, srtm_12_04)
+
+ca_counties = spTransform(ca_counties, crs(low_resolution_dem))
+ca_places = spTransform(ca_places, crs(low_resolution_dem))
+ca_state = spTransform(ca_state, crs(low_resolution_dem))
+biological_resources_inventory = spTransform(biological_resources_inventory, crs(low_resolution_dem))
+
+  california_elevation = crop(low_resolution_dem, ca_state) #Crop the data to the state border
+
+  california_elevation = mask(california_elevation, ca_state) #mask the data to the state border
+california_elevation_hill = hillShade(slope = terrain(california_elevation, "slope"), aspect = terrain(california_elevation, "aspect"))
+local_border = ca_counties[ca_counties$NAME %in% c("Yolo"),]
+#install package rgeos
+local_ca_places = ca_places[local_border,]
+local_ca_state = ca_state[local_border,]
+biological_resources_inventory[local_border,]
+```
+
+```{r Study Area}
+    tm_shape(california_elevation_hill,
+             bbox = bbox(ca_state)) + 
+    tm_grid(col = "black", 
+            n.x = 4, 
+            n.y = 4, 
+            lines = FALSE, 
+            labels.rot = c(0, 90)) + 
+    tm_raster(palette = gray(0:100 / 100), 
+              n = 100,  
+              legend.show = FALSE, 
+              alpha = 0.8) +
+    tm_shape(biological_resources_inventory) +
+  tm_polygons(col="PROP_TYPE",
+            #  size = .3,
+             style = "fixed",
+           #  breaks = seq(-14,-10,0.5),
+             border.lwd = 0.2) +
+  #Counties
+  tm_shape(ca_counties, 
+             unit="imperial") +  
+    tm_borders("black", 
+               lwd = .5, 
+               lty=1) +
+  #Highlighting Yolo County
+      tm_shape(local_border) +
+    tm_borders("red",
+               lty=1,
+               alpha = 0.6) +
+    tm_text(text = "NAME", size=.6, col = "red") +
+  #Legend
+      tm_add_legend( type = "line", lwd = c(0.5),
+                   col =  c( "red", "black"),
+                   lty=c(1,1),
+                   labels = c("Yolo County", "Counties")) +
+  #Scale Bar and Compass
+    tm_scale_bar(position = c("right", "top"))+
+    tm_compass(position = c("left", "bottom"), 
+               type = "4star", 
+               size = 2) +
+    tm_layout(legend.bg.color = "white", legend.frame = T, legend.outside = TRUE) #legend.position = c("left", "bottom"))
+
+
+```

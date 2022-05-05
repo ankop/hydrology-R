@@ -1,0 +1,131 @@
+---
+title: "Homework 5- Spatial Data"
+author: "Enmian Chang"
+date: "11/7/2020"
+output: html_document
+---
+
+## Part 1: Reading assignment (5 points total)
+
+Choose a recent news article *about data* from [Maven's Notebook](https://mavensnotebook.com/) focused on California and answer the following questions:
+
+NOTE: The article must be about a place or problem in California.
+
+Suggestion: 
+
+### A) Name and Link to News Article
+
+[THIS JUST IN … GOVERNOR NEWSOM LAUNCHES INNOVATIVE STRATEGIES TO USE CALIFORNIA LAND TO FIGHT CLIMATE CHANGE, CONSERVE BIODIVERSITY AND BOOST CLIMATE RESILIENCE](https://mavensnotebook.com/2020/10/07/this-just-in-governor-newsom-launches-innovative-strategies-to-use-california-land-to-fight-climate-change-conserve-biodiversity-and-boost-climate-resilience/)
+
+### B) What is the specific local message of the article? Summarize in one paragraph.
+California Governor Gavin Newsom launched an executive order to store carbon in the state's natural land and remove it from the atmosphere to combat climate change. His order also included a goal to conserve 30% of the state's land and coastal water by 2030 to fight the disintegration of biodiversity. They are planning on doing this through healthy soil management, wetlands restoration, forest management, and boosting green infrastructure.
+
+### C) Does it discuss a broader political, environmental, or social concern or issue? Summarize in one paragraph.
+Evidently, this article discusses an environmental and social concern. California is one of the world's 36 biodiversity hotspots, where about 40% of its plant species are endemic. California's agriculture industry produces over a third of the nation's vegetables and two-thirds of the nation's fruits and nuts, making combating climate change of utmost important for both crops and biodiversity. 
+
+### D) What types of data did they use in their study? List the sources we covered in this class or you think we could access through R.
+Although the article didn't list where their methods of obtaining data, we can assume that the public data sets from the California Natural Resources Agency played a part in their studies. They probably used data from the California Water Science Center as provided by the USGS. Biodiversity data may have come from the California Natural Diversity Database.
+
+### E) What further questions would you have for the author, scientists, or policy makers involved in this article?
+What are the percentages of fiscal allocation in accordance to their four action plans (healthy soil management, wetlands restoration, forest management, and boosting green infrastructure), and where will this money come from?
+
+## Part 2: Create two or more maps about the study area discussed in Part 1 (5 points total)
+
+- Call one map the "Site Vicinity Map" and give a general overview of the field area you are describing within a broader context. For example. If your article discusses the Sacramento Delta of California, make a map showing where the Sacramento Delta is located in the greater California map. If your study area is Davis, California then the Site Vicinity Map may only focus around Yolo County and the surrounding area. Be sure to include a few major landmarks for reference.
+- Call the second map "Study Area". Focus the map as much as possible around the area of interest in Part 1 of this assignment.
+- For full points, all maps must include: **A north arrow, a scale bar, and a legend.**
+```{r Maps}
+library(raster)
+library(rgdal)
+library(tmap)
+# install.packages("gdalUtils")
+library(gdalUtils)
+
+data_files = file.path("C:/Users/enmia/OneDrive/Documents/GitHub/FYS-Assignments", "data")
+data_files
+
+ca_counties = readOGR(dsn = data_files, layer = "CA_Counties_TIGER2016")
+ca_places = readOGR(dsn = data_files, layer = "CA_Places_TIGER2016")
+ca_state = readOGR(dsn = data_files, layer = "CA_State_TIGER2016")
+biological_resources_inventory = readOGR(dsn = data_files, layer = "a00a7def-1859-4381-8b9a-d44dde4a5a36202046-1-1qy8kwg.r7bi")
+
+
+srtm_13_06 = raster(file.path(data_files,"srtm_13_06.tif"))
+srtm_13_05 = raster(file.path(data_files,"srtm_13_05.tif"))
+srtm_13_04 = raster(file.path(data_files,"srtm_13_04.tif"))
+srtm_12_06 = raster(file.path(data_files,"srtm_12_06.tif"))
+srtm_12_05 = raster(file.path(data_files,"srtm_12_05.tif"))
+srtm_12_04 = raster(file.path(data_files,"srtm_12_04.tif"))
+```
+
+```{r}
+low_resolution_dem = merge(srtm_13_06, srtm_13_05, srtm_13_04, srtm_12_06, srtm_12_05, srtm_12_04)
+
+ca_counties = spTransform(ca_counties, crs(low_resolution_dem))
+ca_places = spTransform(ca_places, crs(low_resolution_dem))
+ca_state = spTransform(ca_state, crs(low_resolution_dem))
+biological_resources_inventory = spTransform(biological_resources_inventory, crs(low_resolution_dem))
+
+  california_elevation = crop(low_resolution_dem, ca_state) #Crop the data to the state border
+
+  california_elevation = mask(california_elevation, ca_state) #mask the data to the state border
+california_elevation_hill = hillShade(slope = terrain(california_elevation, "slope"), aspect = terrain(california_elevation, "aspect"))
+local_border = ca_counties[ca_counties$NAME %in% c("Yolo", "Napa", "Solano"),]
+#install package rgeos
+local_ca_places = ca_places[local_border,]
+local_ca_state = ca_state[local_border,]
+biological_resources_inventory[local_border,]
+```
+
+```{r Site Vicinity Area}
+states = getData(name = "GADM", # Administrative (States)
+        country = "USA", level=1) #ISO code for
+local_states = states[states$NAME_1 %in% c("Nevada", "California", "Arizona", "Oregon"),]
+
+tm_shape(local_states) + 
+  tm_polygons() +
+  tm_shape(ca_state) +
+    tm_polygons(col="red") +
+  tm_scale_bar(position = c("right", "top"))+
+    tm_compass(position = c("left", "bottom"), 
+               type = "4star", 
+               size = 2) +
+    tm_layout(legend.bg.color = "white", legend.frame = T, legend.outside = TRUE) #legend.position = c("left", "bottom")) 
+  
+
+```
+
+```{r Study Area}
+    tm_shape(california_elevation_hill,
+             bbox = bbox(ca_state)) + 
+    tm_grid(col = "black", 
+            n.x = 4, 
+            n.y = 4, 
+            lines = FALSE, 
+            labels.rot = c(0, 90)) + 
+    tm_raster(palette = gray(0:100 / 100), 
+              n = 100,  
+              legend.show = FALSE, 
+              alpha = 0.8) +
+    tm_shape(biological_resources_inventory) +
+  tm_polygons(col="PROP_TYPE",
+            #  size = .3,
+             style = "fixed",
+           #  breaks = seq(-14,-10,0.5),
+             border.lwd = 0.2) +
+  tm_shape(ca_counties, 
+             unit="imperial") +  
+    tm_borders("black", 
+               lwd = .5, 
+               lty=1) +
+    tm_scale_bar(position = c("right", "top"))+
+    tm_compass(position = c("left", "bottom"), 
+               type = "4star", 
+               size = 2) +
+    tm_layout(legend.bg.color = "white", legend.frame = T, legend.outside = TRUE) #legend.position = c("left", "bottom"))
+
+
+```
+
+
+

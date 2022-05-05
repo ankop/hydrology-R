@@ -1,0 +1,258 @@
+---
+title: "FP2- Study Area Map Yolo County"
+author: "Ankita Giri"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+#Loading the required Libraries
+library(raster)
+library(rgdal)
+library(tmap)
+library(gdalUtils)
+```
+
+```{r}
+#Loading the filepath
+data_files = "D:/Final Project Intro to R for Hydrology/data/data"
+
+```
+
+```{r load_data_files}
+
+#Loading Shapefiles 
+ca_counties = readOGR(dsn = data_files, layer = "CA_Counties_TIGER2016")
+ca_places = readOGR(dsn = data_files, layer = "CA_Places_TIGER2016")
+ca_state = readOGR(dsn = data_files, layer = "CA_State_TIGER2016")
+major_rivers = readOGR(dsn = data_files, layer = "MajorRivers")
+major_rivers_and_creeks = readOGR(dsn = data_files, layer = "MajorRiversAndCreeks")
+major_lakes_and_reservoirs = readOGR(dsn = data_files, layer = "MajorLakesAndReservoirs")
+davis = readOGR(dsn = data_files, layer = "davis")
+
+#Load water wells station data
+wls <-  read.csv("measurements.csv")
+wells <- read.csv("stations.csv")
+```
+
+
+
+```{r}
+#Loading the low resolution 250 meter raster files for California State. Also, merging these rasters into a single large raster.
+srtm_13_06 = raster(file.path(data_files,"srtm_13_06.tif"))
+srtm_13_05 = raster(file.path(data_files,"srtm_13_05.tif"))
+srtm_13_04 = raster(file.path(data_files,"srtm_13_04.tif"))
+srtm_12_06 = raster(file.path(data_files,"srtm_12_06.tif"))
+srtm_12_05 = raster(file.path(data_files,"srtm_12_05.tif"))
+srtm_12_04 = raster(file.path(data_files,"srtm_12_04.tif"))
+
+low_resolution_dem = merge(srtm_13_06, srtm_13_05, srtm_13_04, srtm_12_06, srtm_12_05, srtm_12_04)
+```
+
+```{r}
+#Loading the 1-degree high resolution raster DEMs (downloaded from nationalmap.gov). Also, merging these rasters into a single large raster.
+
+USGS_1_n39w122 = raster(file.path(data_files,"USGS_1_n39w122.tif"))
+USGS_1_n39w123 = raster(file.path(data_files,"USGS_1_n39w123.tif"))
+high_resolution_dem = merge(USGS_1_n39w122, USGS_1_n39w123)
+```
+
+
+```{r}
+#These datasets come from many different sources and their projections generally don’t match. Spatial lines, polygons, and points can be transformed with spTransform().
+
+ca_counties = spTransform(ca_counties, crs(low_resolution_dem))
+ca_places = spTransform(ca_places, crs(low_resolution_dem))
+ca_state = spTransform(ca_state, crs(low_resolution_dem))
+major_rivers = spTransform(major_rivers, crs(low_resolution_dem))
+major_rivers_and_creeks = spTransform(major_rivers_and_creeks, crs(low_resolution_dem))
+major_lakes_and_reservoirs = spTransform(major_lakes_and_reservoirs, crs(low_resolution_dem))
+```
+
+```{r}
+#Crop the data to the CA state border
+california_elevation = crop(low_resolution_dem, ca_state)
+
+#Making a hillshade from the DEM. It simulates the shadows from the sun is hitting hilltops.
+california_elevation_hill = hillShade(slope = terrain(california_elevation, "slope"), aspect = terrain(california_elevation, "aspect"))
+
+high_resolution_dem_hillshade = hillShade(slope = terrain(high_resolution_dem, "slope"), aspect = terrain(high_resolution_dem, "aspect"))
+```
+
+
+```{r}
+
+#Subset the wells in the Yolo County
+wells_subset = subset(wells, COUNTY_NAME %in% c("Yolo"))
+#Subset the wells by Site Code
+wls_subset = wls[wls$SITE %in% wells_subset$SITE_CODE,]
+#Subset the wells by Measurement Date
+wls_subset$MSMT_DATE = as.Date(wls_subset$MSMT_DATE)
+
+#Renaming the variables
+wls = wls_subset
+wells = wells_subset
+```
+
+
+```{r}
+# Aggregate to find the latest (maximum) date associated with each SITE_CODE
+latest_date = aggregate(wls$MSMT_DATE, 
+                        by=list(wls$SITE_CODE), 
+                        FUN= max)
+# Make a list of the SITE_CODES in this subset
+wells_with_data_post_2000 = latest_date$Group.1[latest_date$x >= as.Date("2000-01-01")]
+# Aggregate to find the number of records (or the length of the record) associated with each SITE_CODE
+num_meas = aggregate(wls$MSMT_DATE, 
+                     by=list(wls$SITE_CODE), 
+                     FUN= length)
+
+# Make a list of the SITE_CODES in this subset; Arbitrary threshold of at least 50 measurements.
+wells_with_more_than_50_msmts = num_meas$Group.1[num_meas$x >= 50]
+
+```
+
+
+```{r}
+# Make well locations spatial
+wells_sp = wells
+coordinates(wells_sp) = ~ LONGITUDE+LATITUDE
+proj4string(wells_sp) = CRS("+init=epsg:4326")
+
+# To prepare for the buffer operation, transform the davis polygon object to a projection with units of meters
+davis = spTransform(davis, crs("+init=epsg:3310")) 
+
+davis_buffer_20km = buffer(davis, width = 20000) # 20-km buffer
+# To prepare for the overlay, convert wells_sp to the same projection as davis_buffer_20km
+wells_sp = spTransform(wells_sp, crs(davis_buffer_20km))
+# Perform overlay operation
+wells_within_20km_davis_sp = wells_sp[davis_buffer_20km,]
+
+# Make a list of the SITE_CODES in the new subset
+wells_within_20km_davis = wells_within_20km_davis_sp$SITE_CODE 
+
+```
+
+```{r}
+#Wells in the Yolo County
+yolo_wells = wells$SITE_CODE
+
+#Subset of the wells within 20 km of Davis with data post year 2000 and data consisting of at least 50 measurements
+wells_subset = yolo_wells[yolo_wells %in% wells_with_data_post_2000 &
+                         yolo_wells %in% wells_with_more_than_50_msmts &
+                         yolo_wells %in% wells_within_20km_davis]
+wells_subset= subset(wells, SITE_CODE %in% c(wells_subset))
+```
+
+```{r}
+
+well_sp = wells
+
+# Pass the wells_subset_sp object to the coordinates() function, and specify LATITUDE and LONGITUDE
+coordinates(well_sp) = ~LONGITUDE+LATITUDE
+
+# Assign WGS84 Coordinate Reference System to the new spatial object
+# (WGS84 is the most common way to record GPS coordinates, and is what Google Maps uses)
+proj4string(well_sp) = CRS("+init=epsg:4326")
+well_sp = spTransform(well_sp, crs(ca_counties))
+
+```
+
+
+
+```{r}
+library(rgeos)
+#Simplifying shapefiles to show local data
+
+##Selecting Yolo County
+local_border = ca_counties[ca_counties$NAME %in% c("Yolo"),] 
+#Selecting the towns in Yolo County
+bounding_box = bbox(ca_places[ca_places$NAME %in% c("Davis", "Woodland", "Winters", "West Sacramento"),])
+
+#Using the local county to make new spatial layers focused around just the county we are focused on
+local_high_resolution_dem_hillshade = mask(crop(high_resolution_dem_hillshade,local_border),local_border)
+local_ca_places = ca_places[local_border,]
+local_ca_state = ca_state[local_border,]
+local_major_rivers = major_rivers[local_border,]
+local_major_rivers_and_creeks = major_rivers_and_creeks[local_border,]
+local_major_lakes_and_reservoirs  = major_lakes_and_reservoirs[local_border,]
+
+```
+
+
+```{r}
+
+#Making the Study Area Map of the Subset of Wells within 20 km of Davis, CA.
+
+tm_shape(high_resolution_dem_hillshade,
+             bbox = bounding_box) + 
+    tm_grid(col = "black", 
+            n.x = 4, 
+            n.y = 4, 
+            lines = FALSE, 
+            labels.rot = c(0, 90)) + 
+    tm_raster(palette = gray(0:100 / 100), 
+              n = 100,  
+              legend.show = FALSE, 
+              alpha = 0.8) + 
+#Local Places
+    tm_shape(ca_places,
+             unit="metric") +
+    tm_polygons(border.col = "white",
+                col=NA,
+               lwd = .5,
+               lty=1,
+               alpha = .3) +
+
+#Major Rivers and creeks
+    tm_shape(major_rivers_and_creeks) +  
+    tm_lines(col = "blue",
+               lty=1) +
+
+#Wells
+    tm_shape(well_sp) +
+    tm_dots(shape = 25, 
+             col = "purple",
+             size = .05,
+             style = "fixed",
+             breaks = seq(-14,-10,0.5),
+             border.lwd = 0.2) +
+#Cities names
+    tm_shape(ca_places, 
+             unit="metric") +  
+        tm_text("NAME", 
+            size = 0.6,
+            col="black") +
+
+#Counties
+    tm_shape(local_border) +
+    tm_borders("black",
+               lty=1,
+               alpha = 0.6) +
+    tm_text(text = "NAME", size=.6, col = "black") +
+
+    tm_add_legend( type = "symbol", lwd = c(1.0),
+                   col =  c( "purple"),
+                   lty=c(1),
+                   labels = c( "Ground Water Wells")) +
+    tm_add_legend( type = "line", lwd = c(0.5,0.5),
+                   col =  c("black", "blue"),
+                   lty=c(1.5, 1.5),
+                   labels = c("County Border", "Major Rivers and Creeks")) +
+#Border, Scale, and Compass
+    tm_scale_bar(position = c("LEFT", "bottom"))+
+    tm_compass(position = c("RIGHT", "top"), 
+               type = "4star", 
+               size = 1.5) +
+    tm_layout(legend.bg.color = "white",
+              legend.frame = T,
+              legend.outside = TRUE,
+              legend.position = c("right", "top"),
+              scale = 1.5)
+
+```
+
+

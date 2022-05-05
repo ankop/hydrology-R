@@ -1,0 +1,70 @@
+---
+title: "Arsenic Concentration"
+author: "Enmian Chang"
+date: "12/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+setwd("C:/Users/enmia/OneDrive/Documents/GitHub/FRS-Final-Project/Water Quality Data")
+stations = read.csv("stations.csv")
+period_of_record = read.csv("period-of-record-by-station-and-parameter.csv")
+lab_results = read.csv("lab_results_yolo.csv")
+field_results = read.csv("field-results.csv")
+
+#subset for dissolved arsenic lab results in Yolo County
+lab_subset = subset(lab_results, COUNTY_NAME %in% c("Yolo"))
+unique(lab_subset$PARAMETER)
+arsenic_subset = subset(lab_subset, PARAMETER %in% c("Dissolved Arsenic"))
+
+#subset for stations in Yolo County
+yolo_stations = subset(stations, COUNTY_NAME %in% c("Yolo"))
+
+#merging results and stations
+stations_subset = merge(arsenic_subset, yolo_stations, by = "STATION_ID")
+
+
+
+#Establish date range for 2006-2009
+Date2006 = as.POSIXct("2006-01-01")
+Date2009 = as.POSIXct("2009-12-31")
+
+arsenic_subset$SAMPLE_DATE = as.POSIXct(arsenic_subset$SAMPLE_DATE, format = "%m/%d/%Y %H:%M")
+
+Drought06_09 = subset(arsenic_subset, arsenic_subset$SAMPLE_DATE >= Date2006 & arsenic_subset$SAMPLE_DATE <= Date2009)
+
+#Establish date range for 2012-2016
+Date2012 = as.POSIXct("2012-01-01")
+Date2016 = as.POSIXct("2016-12-31")
+
+Drought12_16 = subset(arsenic_subset, arsenic_subset$SAMPLE_DATE >= Date2012 & arsenic_subset$SAMPLE_DATE <= Date2016)
+
+```
+
+```{r Graphing}
+# Plot the graph from SAMPLE_DATE years 2006-2009 and 2012-2016.
+
+# plot(Drought06_09$RESULT ~ Drought06_09$SAMPLE_DATE,
+#   main = "Measurements over time 2006-09",
+#   xlab = "Date", ylab = "Amt Dissolved arsenic (mg/L)",
+#   col = "brown")
+# abline(h = mean(Drought06_09$RESULT), col = "blue")
+# 
+# plot(Drought12_16$RESULT ~ Drought12_16$SAMPLE_DATE,
+#   main = "Measurements over time 2012-16",
+#   xlab = "Date", ylab = "Amt Dissolved arsenic (mg/L)",
+#   col = "brown")
+# abline(h = mean(Drought12_16$RESULT), col = "blue")
+
+boxplot(Drought06_09$RESULT, Drought12_16$RESULT, 
+        names = c("2006-09", "2012-16"), 
+        main = "Side by Side Boxplots of arsenic Concentration 2006-09 & 2012-16", xlab = "Amount of Dissolved arsenic (mg/L)",
+        col = "bisque", horizontal = TRUE)
+#maximum is 0.010 mg/L of dissolved arsenic in drinking water
+
+```

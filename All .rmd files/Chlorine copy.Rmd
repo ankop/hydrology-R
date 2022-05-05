@@ -1,0 +1,70 @@
+---
+title: "chloride Concentration"
+author: "Enmian Chang"
+date: "12/7/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readr)
+setwd("C:/Users/enmia/OneDrive/Documents/GitHub/FRS-Final-Project/Water Quality Data")
+stations = read.csv("stations.csv")
+lab_results = read.csv("lab_results_yolo.csv")
+
+#subset for dissolved chloride lab results in Yolo County
+lab_subset = subset(lab_results, COUNTY_NAME %in% c("Yolo"))
+unique(lab_subset$PARAMETER)
+chloride_subset = subset(lab_subset, PARAMETER %in% c("Dissolved Chloride"))
+
+#subset for stations in Yolo County
+yolo_stations = subset(stations, COUNTY_NAME %in% c("Yolo"))
+
+#merging results and stations
+stations_subset = merge(chloride_subset, yolo_stations, by = "STATION_ID")
+
+
+
+#Establish date range for 2006-2009
+Date2006 = as.POSIXct("2006-01-01")
+Date2009 = as.POSIXct("2009-12-31")
+
+chloride_subset$SAMPLE_DATE = as.POSIXct(chloride_subset$SAMPLE_DATE, format = "%m/%d/%Y %H:%M")
+
+Drought06_09 = subset(chloride_subset, chloride_subset$SAMPLE_DATE >= Date2006 & chloride_subset$SAMPLE_DATE <= Date2009)
+
+#Establish date range for 2012-2016
+Date2012 = as.POSIXct("2012-01-01")
+Date2016 = as.POSIXct("2016-12-31")
+
+Drought12_16 = subset(chloride_subset, chloride_subset$SAMPLE_DATE >= Date2012 & chloride_subset$SAMPLE_DATE <= Date2016)
+
+```
+
+```{r Graphing}
+# Plot the graph from SAMPLE_DATE years 2006-2009 and 2012-2016.
+
+plot(Drought06_09$RESULT ~ Drought06_09$SAMPLE_DATE,
+  main = "Measurements of Chloride Concentration from 2006-09",
+  xlab = "Date", ylab = "Amt Dissolved chloride (mg/L)",
+  col = "brown")
+abline(h = mean(Drought06_09$RESULT), col = "blue")
+
+plot(Drought12_16$RESULT ~ Drought12_16$SAMPLE_DATE,
+  main = "Measurements of Chloride Concentration from 2012-16",
+  xlab = "Date", ylab = "Amt Dissolved chloride (mg/L)",
+  col = "brown")
+abline(h = mean(Drought12_16$RESULT, na.rm = TRUE), col = "blue")
+
+boxplot(Drought06_09$RESULT, Drought12_16$RESULT, 
+        names = c("2006-09", "2012-16"), 
+        main = "Side by Side Boxplots of Chloride Concentration 2006-09 & 2012-16", xlab = "Amount of Dissolved chloride (mg/L)",
+        col = "bisque", horizontal = TRUE)
+summary(Drought06_09$RESULT)
+summary(Drought12_16$RESULT)
+#maximum is 250 mg/L of dissolved chloride in drinking water
+
+```

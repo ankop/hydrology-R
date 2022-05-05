@@ -1,0 +1,110 @@
+---
+title: "Databases and Graphs"
+author: "Ryan Campbell"
+date: "11/18/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Team Drought Project
+## Library, Files & Prep Code
+```{r Library, Files & Code}
+library(readr)
+measurements <- read_csv("~/Desktop/FYS - R Programming/Homework 1/measurements.csv")
+lab_results <- read_csv("~/Desktop/FYS - R Programming/Final Project Files/lab-results.csv")
+groundwater_stations <- read_csv("~/Desktop/FYS - R Programming/Final Project Files/groundwater-stations.csv")
+
+measurements$MSMT_DATE = as.POSIXct(measurements$MSMT_DATE)
+
+#Subset for only Yolo County stations
+stations = subset(groundwater_stations, SITE_CODE %in% c("383785N1216916W001", "384980N1220052W001", "385162N1215818W001", "385298N1216943W001", 
+"385394N1218020W001", "385447N1218654W001", "385655N1217030W001", "385682N1217327W001" , 
+"385687N1218046W001", "385751N1219707W001", "385865N1216754W001", "385905N1218073W001", 
+"386135N1218950W001", "386180N1219524W001", "386193N1217623W001", "386464N1216675W001", 
+"386464N1216675W002", "386464N1216675W003", "386464N1216675W004", "386720N1216719W001",
+ "386854N1218361W001", "386914N1217662W001", "387196N1216083W001"))
+
+#Create subset by join/merge from groundwater_stations and measurements
+measurements_subset = merge(stations, measurements,  by = "SITE_CODE")
+
+#Establish date range for 2006-2009
+Date2006 = as.POSIXct("2006-01-01")
+Date2009 = as.POSIXct("2009-12-31")
+
+Drought06_09_WSE = subset(measurements_subset, measurements_subset$MSMT_DATE >= Date2006 & measurements_subset$MSMT_DATE <= Date2009)
+
+#Establish date range for 2012-2016
+Date2012 = as.POSIXct("2012-01-01")
+Date2016 = as.POSIXct("2016-12-31")
+
+Drought12_16_WSE = subset(measurements_subset, measurements_subset$MSMT_DATE >= Date2012 & measurements_subset$MSMT_DATE <= Date2016)
+
+head(Drought06_09_WSE)
+head(Drought12_16_WSE)
+
+Date2000 = as.POSIXct("2000-01-01")
+
+DateFrom2000_WSE = subset(measurements_subset, measurements_subset$MSMT_DATE >= Date2000)
+```
+
+
+### Plots of WSE for each drought & from 2000
+```{r Graphing}
+# Plot of Water Surface Elevation for each drought & from 2000
+plot(x = DateFrom2000_WSE$MSMT_DATE, y = DateFrom2000_WSE$WSE,
+     main = paste("Measurements over time from 2000"),
+     type = "h",
+     col = "dark blue",
+     xlab = "Measurement Date", ylab = "Water Surface Elevation (ft amsl)",
+     ylim = c(-100, 150))
+grid()
+
+plot(x = Drought06_09_WSE$MSMT_DATE, y = Drought06_09_WSE$WSE,
+    main = paste("Measurements over time 2006-09"),
+    type = "h",
+    col = "dark blue",
+    xlab = "Measurement Date", ylab = "Water Surface Elevation (ft amsl)",
+     ylim = c(-100, 150))
+grid()
+
+plot(x = Drought12_16_WSE$MSMT_DATE, y = Drought12_16_WSE$WSE,
+    main = paste("Measurements over time 2012-16"),
+    type = "h",
+    col = "dark blue",
+    xlab = "Measurement Date", ylab = "Water Surface Elevation (ft amsl)",
+     ylim = c(-100, 150))
+grid()
+```
+
+
+### Histograms of WSE for each drought & from 2000
+```{r Histograms of WSE}
+hist(x = DateFrom2000_WSE$WSE, breaks = 20,
+     main = paste("Water Surface Elevation from 2000"),
+     col = "dark blue",
+     xlab = "Water Surface Elevation (ft amsl)", ylab = "Frequency of occurence",
+     xlim = c(-100,150),
+     ylim = c(0,650))
+
+hist(x = Drought06_09_WSE$WSE, breaks = 20,
+     main = paste("Water Surface Elevation for 2006-2009 Drought"),
+     col = "dark blue",
+     xlab = "Water Surface Elevation (ft amsl)", ylab = "Frequency of occurence",
+     xlim = c(-100,150),
+     ylim = c(0,650))
+
+hist(x = Drought12_16_WSE$WSE, breaks = 20,
+     main = paste("Water Surface Elevation for 2012-2016 Drought"),
+     col = "dark blue",
+     xlab = "Water Surface Elevation (ft amsl)", ylab = "Frequency of occurence",
+     xlim = c(-100,150),
+     ylim = c(0,650))
+
+## Summary stats of each drought's WSE data
+summary(DateFrom2000_WSE$WSE)
+summary(Drought06_09_WSE$WSE)
+summary(Drought12_16_WSE$WSE)
+```

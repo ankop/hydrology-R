@@ -1,0 +1,89 @@
+---
+title: "Dissolved Water Hardness Concentration"
+output: html_document
+---
+
+```{r read_data, echo=FALSE}
+#Read in data layers
+file_path = "C:/Users/Ankita/Desktop/Presentation"
+wells = read.csv("stations.csv") #well locations
+water_quality = read.csv("lab-results.csv") #water quality lab results
+
+# Data cleaning and subsets
+wq_subset = subset(water_quality, COUNTY_NAME %in% c("Yolo"))
+wq_subset$SAMPLE_DATE = as.Date(wq_subset$SAMPLE_DATE, format = "%m/%d/%Y")
+wells_subset = subset(wells, COUNTY_NAME %in% c("Yolo"))
+```
+
+```{r plot_yolo_gw_wq, echo=FALSE}
+#Creating a subset of the wells in the Yolo County
+yolo_stations_subset = subset(wells, COUNTY_NAME %in% c("Yolo"))
+
+#Establish date range for 2006-2009
+Date2006 = as.POSIXct("2006-01-01")
+Date2009 = as.POSIXct("2009-12-31")
+
+#Establish date range for 2012-2016
+Date2012 = as.POSIXct("2012-01-01")
+Date2016 = as.POSIXct("2016-12-31")
+```
+
+```{r Water_Hardness, echo=FALSE}
+#Creating a subset of Dissolved Hardness from the Subset of the Wells in Yolo County
+hardness_subset = subset(wq_subset, PARAMETER %in% c("Dissolved Hardness"))
+#Merging the subset of the wells with Dissolved Hardness with the Yolo County Stations subset by STATION_ID
+hardness_stations_subset = merge(hardness_subset, yolo_stations_subset, by = "STATION_ID")
+#Changing the format of the parameter Sample_Date in Hardness Subset
+hardness_subset$SAMPLE_DATE = as.POSIXct(hardness_subset$SAMPLE_DATE, format = "%m/%d/%Y %H:%M")
+
+#Creating a subset of the water sources containing Water Hardness for Period 2006-2009
+hardness_Drought06_09 = subset(hardness_subset, hardness_subset$SAMPLE_DATE >= Date2006 & hardness_subset$SAMPLE_DATE <= Date2009)
+
+#Creating a subset of the water sources containing Water Hardness for Period 2012-2016
+hardness_Drought12_16 = subset(hardness_subset, hardness_subset$SAMPLE_DATE >= Date2012 & hardness_subset$SAMPLE_DATE <= Date2016)
+```
+
+```{r Graphing Total_Dissolved_Hardness_Water, echo=FALSE, cache=FALSE, results=FALSE, warning=FALSE, comment=FALSE, warning=FALSE }
+library(ggplot2)
+
+#Setting the background theme to Black and White for the plot
+theme_set(theme_bw())
+#Plotting the graph of Measurement of Water Hardness Concentration with the mean horizontal line from SAMPLE_DATE years 2006-2009 
+ggplot(hardness_Drought06_09, aes(x=SAMPLE_DATE, y=RESULT)) +
+      geom_point(color = "firebrick", shape = "diamond", size = 2)+
+      geom_line(color = "firebrick", linetype = "dotted", size = .3)+
+      labs(title = "Measurements of Total Dissolved Hardness Concentration from 2006-09", x = "Date",
+           y= " Total Amount of Dissolved Hardness (mg/L)")+
+          ylim(c(0,300))+
+       geom_hline(aes(yintercept = mean(RESULT, na.rm = TRUE)), size = 1.5,
+             color = "steelblue", linetype = "dashed") 
+
+# Plotting the graph of Measurement of Water Hardness Concentration with the mean horizontal line from SAMPLE_DATE years 2012-2016 
+ggplot(hardness_Drought12_16, aes(x=SAMPLE_DATE, y=RESULT)) +
+     geom_point(color = "steelblue", shape = "diamond", size = 2)+
+      geom_line(color = "steelblue", linetype = "dotted", size = .3)+
+      labs(title = "Measurements of Total Dissolved Hardness Concentration from 2012-16", x = "Date",
+           y= "Total Amount of Dissolved Hardness (mg/L)")+
+      ylim(c(0,300))+
+       geom_hline(aes(yintercept = mean(RESULT, na.rm=TRUE)), size = 1.5,
+                  color = "firebrick", linetype= "dashed") 
+
+#Comparing the Boxplots of Water Hardness Concentration between years 2006-09 & 2012-16
+boxplot(hardness_Drought06_09$RESULT, hardness_Drought12_16$RESULT, 
+        names = c("2006-09", "2012-16"), 
+        main = "Side by Side Boxplots of Water Hardness 2006-09 & 2012-16",
+         xlab = "Total Amount of Dissolved Solids (mg/L)",
+        col = c("firebrick","steelblue"), horizontal = TRUE)
+```
+
+#Summarry of the Result for Water Hardness Concentration for the Drought Period 2006-09
+```{r water_hardness_summary, echo=FALSE}
+#Summary of the Water Hardness Containg Data from Period 2006-09 
+summary(hardness_Drought06_09$RESULT)
+```
+
+#Summarry of the Result for Water Hardness Concentration for the Drought Period 2006-09
+```{r water_hardness_summary12_16, echo=FALSE}
+#Summary of the Water Hardness Containg Data from Period 2012-16 
+summary(hardness_Drought12_16$RESULT)
+```
